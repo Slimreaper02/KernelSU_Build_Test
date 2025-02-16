@@ -95,7 +95,7 @@ jobs:
     - name: Compress AnyKernel3 with unofficial KernelSU folder to zip
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/AnyKernel3
-        zip -r "$GITHUB_WORKSPACE/AK3-Nameless-OPlus-SM8350(Chandu)-Unofficial-KSU_${{ env.KSUVER_1 }}-${{ env.BUILD_TIME }}.zip" ./*
+        zip -r "$GITHUB_WORKSPACE/AK3-PixelOS-Official-OPlus-SM8350(ItsXRP)-Unofficial-KSU_${{ env.KSUVER_1 }}-${{ env.BUILD_TIME }}.zip" ./*
     
     - name: Upload Image
       if: env.CHECK_IMAGE_1 == 'true'
