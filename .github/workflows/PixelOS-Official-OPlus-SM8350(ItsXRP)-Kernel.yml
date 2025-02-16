@@ -52,12 +52,14 @@ jobs:
         cd $GITHUB_WORKSPACE/patches
         sed -i '1687 r path_umount.c' $GITHUB_WORKSPACE/kernel_workspace/android-kernel/fs/namespace.c
 
-    - name: Setup KernelSU
+    - name: Setup unofficial KernelSU
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
-        KSU_VERSION=$(cd KernelSU && expr $(/usr/bin/git rev-list --count HEAD) + 10200)
-        echo "KSUVER=KSU_$KSU_VERSION" >> $GITHUB_ENV
+        rm -rf KernelSU
+        rm -rf drivers/kernelsu
+        curl -LSs "https://raw.githubusercontent.com/backslashxx/KernelSU/magic/kernel/setup.sh" | bash -s magic
+        KSU_VERSION_1=$(cd KernelSU && expr $(/usr/bin/git rev-list --count HEAD) + 10167)
+        echo "KSUVER_1=$KSU_VERSION_1" >> $GITHUB_ENV
     
     - name: Build kernel
       run: |
@@ -73,39 +75,40 @@ jobs:
         make O=out ARCH=arm64 CC=clang $BA_CMD $EX_CMD $DEFCONFIG
         make -j$(nproc --all) O=out ARCH=arm64 CC=clang $BA_CMD $EX_CMD 
     
-    - name: Check a kernel output files
+    - name: Check a kernel output files with unofficial KernelSU
       run: |
        cd $GITHUB_WORKSPACE/kernel_workspace
        if [ -f android-kernel/out/arch/arm64/boot/Image ]; then
-           echo "CHECK_IMAGE=true" >> $GITHUB_ENV
+           echo "CHECK_IMAGE_1=true" >> $GITHUB_ENV
        else
            echo "Kernel output file is empty"
            exit 1
        fi
       
-    - name: Make Anykernel3
-      if: env.CHECK_IMAGE == 'true'
+    - name: Make AnyKernel3 with unofficial KernelSU
+      if: env.CHECK_IMAGE_1 == 'true'
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone https://github.com/osm0sis/AnyKernel3 --depth=1 AnyKernel3
-        sed -i 's/do.devicecheck=1/do.devicecheck=0/g' AnyKernel3/anykernel.sh
-        sed -i 's!BLOCK=/dev/block/platform/omap/omap_hsmmc.0/by-name/boot;!BLOCK=auto;!g' AnyKernel3/anykernel.sh
-        sed -i 's/IS_SLOT_DEVICE=0;/IS_SLOT_DEVICE=auto;/g' AnyKernel3/anykernel.sh
+        rm -rf AnyKernel3/Image
         cp android-kernel/out/arch/arm64/boot/Image AnyKernel3/
-        rm -rf AnyKernel3/.git* AnyKernel3/README.md
+
+    - name: Compress AnyKernel3 with unofficial KernelSU folder to zip
+      run: |
+        cd $GITHUB_WORKSPACE/kernel_workspace/AnyKernel3
+        zip -r "$GITHUB_WORKSPACE/AK3-Nameless-OPlus-SM8350(Chandu)-Unofficial-KSU_${{ env.KSUVER_1 }}-${{ env.BUILD_TIME }}.zip" ./*
     
-    - name: Upload image
-      if: env.CHECK_IMAGE == 'true'
+    - name: Upload Image
+      if: env.CHECK_IMAGE_1 == 'true'
       uses: actions/upload-artifact@v4
       with:
-        name: Image-${{ env.KSUVER }}
+        name: Image-Unofficial-KSU_${{ env.KSUVER_1 }}
         path: kernel_workspace/android-kernel/out/arch/arm64/boot/Image
 
     - name: Upload AnyKernel3
-      if: env.CHECK_IMAGE == 'true'
+      if: env.CHECK_IMAGE_1 == 'true'
       uses: actions/upload-artifact@v4
       with:
-        name: AK3-PixelOS-Official-OPlus-SM8350(ItsXRP)-${{ env.KSUVER }}-${{ env.BUILD_TIME }}
+        name: AK3-PixelOS-OPlus-SM8350(ItsXRP)-Unofficial-KSU_${{ env.KSUVER_1 }}-${{ env.BUILD_TIME }}
         path: kernel_workspace/AnyKernel3/*
 
     - name: Build kernel for lunaa
@@ -151,5 +154,5 @@ jobs:
       if: env.CHECK_IMAGE == 'true'
       uses: actions/upload-artifact@v4
       with:
-        name: AK3-PixelOS-Official-lunaa(ItsXRP)-${{ env.KSUVER }}-${{ env.BUILD_TIME }}
+        name: AK3-PixelOS-Official-lunaa(ItsXRP)-Unofficial-KSU${{ env.KSUVER }}-${{ env.BUILD_TIME }}
         path: kernel_workspace/AnyKernel3/*
