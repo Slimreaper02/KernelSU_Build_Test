@@ -45,8 +45,8 @@ jobs:
     - name: Setup KernelSU Next
       run: |
         curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -
-        KSU_NEXT_VERSION=$(expr $(/usr/bin/git rev-list --count HEAD) + 10200)
-        echo "KSU_NEXT_VER=$KSU_NEXT_VERSION" >> $GITHUB_ENV
+        KSU_VERSION=$(cd KernelSU && expr $(/usr/bin/git rev-list --count HEAD) + 10200)
+        echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
 
     - name: Build kernel for lunaa
       run: |
