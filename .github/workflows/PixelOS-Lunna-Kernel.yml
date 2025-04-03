@@ -39,7 +39,9 @@ jobs:
         git clone --recursive https://github.com/Slimreaper02/kernel_oneplus_sm8350 -b fifteen android-kernel --depth=1
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel/scripts
         sed -i 's/ -dirty//g' setlocalversion
-        
+        cd $GITHUB_WORKSPACE/patches
+        sed -i '1687 r path_umount.c' $GITHUB_WORKSPACE/kernel_workspace/android-kernel/fs/namespace.c
+    
     - name: Setup KernelSU Next
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
