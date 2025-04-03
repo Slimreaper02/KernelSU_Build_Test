@@ -36,15 +36,16 @@ jobs:
     - name: Download kernel source
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone --recursive https://github.com/Slimreaper02/platform_kernel_oneplus_sm8350 -b fifteen android-kernel --depth=1
+        git clone --recursive https://github.com/Slimreaper02/kernel_oneplus_sm8350 -b fifteen android-kernel --depth=1
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel/scripts
         sed -i 's/ -dirty//g' setlocalversion
         cd $GITHUB_WORKSPACE/patches
         sed -i '1687 r path_umount.c' $GITHUB_WORKSPACE/kernel_workspace/android-kernel/fs/namespace.c
 
-    - name: Setup KernelSU Next
+    - name: Setup official KernelSU
       run: |
-        curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -
+        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
         KSU_VERSION=$(cd KernelSU && expr $(/usr/bin/git rev-list --count HEAD) + 10200)
         echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
 
