@@ -40,8 +40,14 @@ jobs:
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel/scripts
         sed -i 's/ -dirty//g' setlocalversion
         cd $GITHUB_WORKSPACE/patches
-        sed -i '1687 r path_umount.c' $GITHUB_WORKSPACE/kernel_workspace/android-kernel/fs/namespace.c
-     
+        sed -i '1687 r path_umount.c' $GITHUB_WORKSPACE/kernel_workspace/android-kernel/fs/namespace.c                                                                                 
+        ❯ patch -p1 < 0001-kernel-patch-susfs-v1.5.5-to-KernelSU-Next-v1.0.5.patch
+        ❯ git clone https://gitlab.com/simonpunk/susfs4ksu.git -b kernel-5.4                                    
+        ❯ cp -v susfs4ksu/kernel_patches/fs/susfs.c fs
+        ❯ cp -v susfs4ksu/kernel_patches/include/linux/sus_su.h include/linux
+        ❯ cp -v susfs4ksu/kernel_patches/50_add_susfs_in_gki-android14-5.15.patch .
+        ❯ patch -p1 < 50_add_susfs_in_kernel-5.4.patch
+
     - name: Setup KernelSU Next
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
