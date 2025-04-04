@@ -49,25 +49,19 @@ jobs:
         KSU_VERSION=$(cd KernelSU-Next && expr $(/usr/bin/git rev-list --count HEAD) + 10200) 
         echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
 
-    - name: Fetch susfs patch files
+    - name: Apply susfs patches
       run: |
         export KERNEL_ROOT=$GITHUB_WORKSPACE/kernel_workspace/android-kernel
 
-        mkdir -p $GITHUB_WORKSPACE/temp_patch/KernelSU
-        mkdir -p $KERNEL_ROOT/fs
-        mkdir -p $KERNEL_ROOT/include/linux
+        # Copy patches and source files
+        cp $GITHUB_WORKSPACE/patches/KernelSU/10_enable_susfs_for_ksu.patch $KERNEL_ROOT/KernelSU/
+        cp $GITHUB_WORKSPACE/patches/50_add_susfs_in_kernel-5.4.patch $KERNEL_ROOT/
+        cp $GITHUB_WORKSPACE/patches/fs/susfs.c $KERNEL_ROOT/fs/
+        cp $GITHUB_WORKSPACE/patches/include/linux/susfs.h $KERNEL_ROOT/include/linux/
 
-        wget -O $GITHUB_WORKSPACE/temp_patch/KernelSU/10_enable_susfs_for_ksu.patch https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/main/KernelSU/10_enable_susfs_for_ksu.patch
-        wget -O $GITHUB_WORKSPACE/temp_patch/50_add_susfs_in_kernel-5.4.patch https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/main/50_add_susfs_in_kernel-5.4.patch
-        wget -O $KERNEL_ROOT/fs/susfs.c https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/main/fs/susfs.c
-        wget -O $KERNEL_ROOT/include/linux/susfs.h https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/main/include/linux/susfs.h
-
-        cp $GITHUB_WORKSPACE/temp_patch/KernelSU/10_enable_susfs_for_ksu.patch $KERNEL_ROOT/KernelSU/
-        cp $GITHUB_WORKSPACE/temp_patch/50_add_susfs_in_kernel-5.4.patch $KERNEL_ROOT/
-
+        #Apply patches  
         cd $KERNEL_ROOT/KernelSU && patch -p1 < 10_enable_susfs_for_ksu.patch
         cd $KERNEL_ROOT && patch -p1 < 50_add_susfs_in_kernel-5.4.patch
-
 
     - name: Build kernel for lunaa
       run: |
