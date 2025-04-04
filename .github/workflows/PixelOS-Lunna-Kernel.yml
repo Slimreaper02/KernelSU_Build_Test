@@ -51,9 +51,8 @@ jobs:
 
     - name: Apply kernel patches
       run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        patch -p1 < $GITHUB_WORKSPACE/patches/0001-kernel-patch-susfs-v1.5.5-to-KernelSU-Next-v1.0.5.patch
-        git clone https://gitlab.com/simonpunk/susfs4ksu.git -b kernel-5.4                                    
+        cd $GITHUB_WORKSPACE/kernel_workspace
+        git clone --recursive https://gitlab.com/simonpunk/susfs4ksu.git -b kernel-5.4 android-kernel --depth=1                                 
         cp -v susfs4ksu/kernel_patches/fs/susfs.c fs
         cp -v susfs4ksu/kernel_patches/include/linux/sus_su.h include/linux
 
