@@ -41,13 +41,7 @@ jobs:
         sed -i 's/ -dirty//g' setlocalversion
         cd $GITHUB_WORKSPACE/patches
         sed -i '1687 r path_umount.c' $GITHUB_WORKSPACE/kernel_workspace/android-kernel/fs/namespace.c                                                                                 
-        ❯ patch -p1 < 0001-kernel-patch-susfs-v1.5.5-to-KernelSU-Next-v1.0.5.patch
-        ❯ git clone https://gitlab.com/simonpunk/susfs4ksu.git -b kernel-5.4                                    
-        ❯ cp -v susfs4ksu/kernel_patches/fs/susfs.c fs
-        ❯ cp -v susfs4ksu/kernel_patches/include/linux/sus_su.h include/linux
-        ❯ cp -v susfs4ksu/kernel_patches/50_add_susfs_in_gki-android14-5.15.patch .
-        ❯ patch -p1 < 50_add_susfs_in_kernel-5.4.patch
-
+    
     - name: Setup KernelSU Next
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
@@ -55,19 +49,14 @@ jobs:
         KSU_VERSION=$(cd KernelSU-Next && expr $(/usr/bin/git rev-list --count HEAD) + 10200) 
         echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
 
-    - name: Apply susfs patches
+    - name: Apply kernel patches
       run: |
-        export KERNEL_ROOT=$GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        patch -p1 < $GITHUB_WORKSPACE/patches/0001-kernel-patch-susfs-v1.5.5-to-KernelSU-Next-v1.0.5.patch
+        git clone https://gitlab.com/simonpunk/susfs4ksu.git -b kernel-5.4                                    
+        cp -v susfs4ksu/kernel_patches/fs/susfs.c fs
+        cp -v susfs4ksu/kernel_patches/include/linux/sus_su.h include/linux
 
-        # Copy patches and source files
-        cp $GITHUB_WORKSPACE/patches/KernelSU/10_enable_susfs_for_ksu.patch $KERNEL_ROOT/KernelSU/
-        cp $GITHUB_WORKSPACE/patches/50_add_susfs_in_kernel-5.4.patch $KERNEL_ROOT/
-        cp $GITHUB_WORKSPACE/patches/fs/susfs.c $KERNEL_ROOT/fs/
-        cp $GITHUB_WORKSPACE/patches/include/linux/susfs.h $KERNEL_ROOT/include/linux/
-
-        #Apply patches  
-        cd $KERNEL_ROOT/KernelSU && patch -p1 < 10_enable_susfs_for_ksu.patch
-        cd $KERNEL_ROOT && patch -p1 < 50_add_susfs_in_kernel-5.4.patch
 
     - name: Build kernel for lunaa
       run: |
