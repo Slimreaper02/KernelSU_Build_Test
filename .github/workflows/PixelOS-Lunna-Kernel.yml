@@ -42,27 +42,10 @@ jobs:
         cd $GITHUB_WORKSPACE/patches
         sed -i '1687 r path_umount.c' $GITHUB_WORKSPACE/kernel_workspace/android-kernel/fs/namespace.c
      
-     # Add SUSFS patches
-    - name: Copy 10_enable_susfs_for_ksu patch to KernelSU
-      run: |
-        cp ./kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/KernelSU/
-
-    - name: Copy 50_add_susfs_in_kernel patch to common
-      run: |
-        cp ./kernel_patches/50_add_susfs_in_kernel-5.4.268-GatoKernel-R3-gec95e87f.patch $GITHUB_WORKSPACE/kernel_workspace/android-kernel/common/
-
-    - name: Copy fs patches to common/fs/
-      run: |
-        cp ./kernel_patches/fs/* $GITHUB_WORKSPACE/kernel_workspace/android-kernel/common/fs/
-
-    - name: Copy include/linux patches to common/include/linux/
-      run: |
-        cp ./kernel_patches/include/linux/* $GITHUB_WORKSPACE/kernel_workspace/android-kernel/common/include/linux/
-   
     - name: Setup KernelSU Next
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next-susfs/kernel/setup.sh" | bash -s next-susfs
+        curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next-susfs/kernel/setup.sh" | bash -s next-susfs-dev
         KSU_VERSION=$(cd KernelSU-Next && expr $(/usr/bin/git rev-list --count HEAD) + 10200) 
         echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
 
