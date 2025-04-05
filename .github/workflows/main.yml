@@ -67,10 +67,6 @@ jobs:
         cd ${{ env.KERNEL_SOURCE_DIR }}
         # Remove "-dirty" suffix from local version
         sed -i 's/ -dirty//g' scripts/setlocalversion
-        # Apply specific patch using sed 'r' (ensure path_umount.c exists and path is correct)
-        # NOTE: This 'sed r' method is fragile. Consider using 'patch' if possible.
-        # Assuming path_umount.c is directly inside the kernel_patches repo root. Adjust if needed.
-        sed -i '1687 r ${{ env.KERNEL_WORKSPACE }}/kernel_patches/path_umount.c' fs/namespace.c
       shell: bash
 
     - name: Setup KernelSU (Submodule Integration)
