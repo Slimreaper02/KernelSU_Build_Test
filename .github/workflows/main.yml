@@ -1,0 +1,286 @@
+name: Build SUSFS Kernel
+
+on:
+  workflow_dispatch:
+
+env:
+  TZ: Asia/Shanghai
+  # Define the central workspace directory
+  KERNEL_WORKSPACE: ${{ github.workspace }}/kernel_workspace
+  # Define the kernel source subdirectory name
+  KERNEL_SOURCE_DIR: android-kernel
+
+jobs:
+  build:
+    name: Build Kernel by ${{ github.actor }}
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Checkout Source Code
+      uses: actions/checkout@v4
+
+    - name: Set swap to 10G
+      uses: pierotofy/set-swap-space@master
+      with:
+        swap-size-gb: 10
+
+    - name: Setup Build Environment and Tools
+      run: |
+        echo "BUILD_TIME=$(TZ=Asia/Shanghai date "+%y%m%d")" >> $GITHUB_ENV
+        echo "BUILD_TIME_1=$(TZ=Asia/Shanghai date "+%Y-%m-%d")" >> $GITHUB_ENV
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          git ccache automake flex lzop bison gperf build-essential zip curl zlib1g-dev \
+          g++-multilib bzip2 libbz2-dev liblz4-tool make squashfs-tools dpkg-dev \
+          libssl-dev python2 python3 bc libc6-dev-i386 libncurses5-dev wget \
+          libxml2-utils xsltproc unzip device-tree-compiler rsync patchelf
+        # Create the main workspace directory
+        mkdir -p ${{ env.KERNEL_WORKSPACE }}
+      shell: bash
+
+    - name: Download Clang Toolchain (AOSP r522817)
+      working-directory: ${{ env.KERNEL_WORKSPACE }}
+      run: |
+        set -euxo pipefail
+        mkdir clang-aosp
+        wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522817.tar.gz -O clang-r522817.tar.gz
+        tar -zxvf clang-r522817.tar.gz -C clang-aosp/
+        rm clang-r522817.tar.gz # Clean up archive
+      shell: bash
+
+    - name: Clone Required Repositories (AnyKernel3, SUSFS, Patches)
+      working-directory: ${{ env.KERNEL_WORKSPACE }}
+      run: |
+        set -euxo pipefail
+        # Clone AnyKernel3 (only once)
+        git clone --depth=1 https://github.com/TheWildJames/AnyKernel3.git -b non-gki AnyKernel3
+        # Clone SUSFS patches
+        git clone --depth=1 https://gitlab.com/simonpunk/susfs4ksu.git -b kernel-5.4 susfs4ksu
+        # Clone other kernel patches
+        git clone --depth=1 https://github.com/cabagekiller/kernel_patches.git kernel_patches
+      shell: bash
+
+    - name: Download Kernel Source (OnePlus SM8350)
+      working-directory: ${{ env.KERNEL_WORKSPACE }}
+      run: |
+        set -euxo pipefail
+        git clone --recursive --depth=1 https://github.com/Slimreaper02/kernel_oneplus_sm8350 -b fifteen ${{ env.KERNEL_SOURCE_DIR }}
+        cd ${{ env.KERNEL_SOURCE_DIR }}
+        # Remove "-dirty" suffix from local version
+        sed -i 's/ -dirty//g' scripts/setlocalversion
+        # Apply specific patch using sed 'r' (ensure path_umount.c exists and path is correct)
+        # NOTE: This 'sed r' method is fragile. Consider using 'patch' if possible.
+        # Assuming path_umount.c is directly inside the kernel_patches repo root. Adjust if needed.
+        sed -i '1687 r ${{ env.KERNEL_WORKSPACE }}/kernel_patches/path_umount.c' fs/namespace.c
+      shell: bash
+
+    - name: Setup KernelSU (Submodule Integration)
+      # Working directory is the kernel source root
+      working-directory: ${{ env.KERNEL_WORKSPACE }}/${{ env.KERNEL_SOURCE_DIR }}
+      run: |
+        set -euxo pipefail
+        # Run KernelSU setup script
+        curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -s next-susfs-dev
+        # Initialize submodules added by the script
+        git submodule update --init --recursive
+        # Set KSU Version based on commit count
+        cd KernelSU-Next/kernel
+        KSU_COMMITS=$(git rev-list --count HEAD)
+        # Ensure KSU_COMMITS is a number, default to 0 if not
+        if ! [[ "$KSU_COMMITS" =~ ^[0-9]+$ ]]; then
+            echo "Warning: Failed to get commit count for KernelSU-Next. Defaulting KSU_VERSION."
+            KSU_COMMITS=0 # Or some default value
+        fi
+        KSU_VERSION=$(expr $KSU_COMMITS + 10200)
+        echo "Calculated KSU_VERSION: $KSU_VERSION"
+        echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
+        # Update KSU version in its Makefile
+        sed -i "s/^\(CONFIG_KSU_VERSION[[:space:]]*=[[:space:]]*\"\).*\(\".*\)$/\1${KSU_VERSION}\2/" ../core/config.c || echo "Warning: Could not set KSU_VERSION in config.c"
+        sed -i "s/DKSU_VERSION=11998/DKSU_VERSION=${KSU_VERSION}/" Makefile || echo "Warning: Could not set DKSU_VERSION in Makefile"
+      shell: bash
+
+    - name: Setup SUSFS Patches
+      # Working directory is the kernel source root
+      working-directory: ${{ env.KERNEL_WORKSPACE }}/${{ env.KERNEL_SOURCE_DIR }}
+      run: |
+        set -euxo pipefail
+        # Define patch locations relative to the current working directory (kernel source root)
+        SUSFS_PATCH_DIR="../susfs4ksu/kernel_patches" # Relative to android-kernel
+        OTHER_PATCH_DIR="../kernel_patches"         # Relative to android-kernel
+        KSU_NEXT_DIR="KernelSU-Next"
+
+        # Check if patch directories exist
+        if [ ! -d "$SUSFS_PATCH_DIR" ]; then echo "Error: SUSFS patch directory not found at $SUSFS_PATCH_DIR"; exit 1; fi
+        if [ ! -d "$OTHER_PATCH_DIR" ]; then echo "Error: Other patch directory not found at $OTHER_PATCH_DIR"; exit 1; fi
+        if [ ! -d "$KSU_NEXT_DIR" ]; then echo "Error: KernelSU-Next directory not found at $KSU_NEXT_DIR"; exit 1; fi
+
+        # Create target directories if they don't exist (adjust paths if needed based on kernel structure)
+        mkdir -p ./fs ./include/linux
+
+        # Copy SUSFS files (adjust source paths if needed within susfs4ksu repo)
+        cp "${SUSFS_PATCH_DIR}/fs/"* ./fs/ || echo "Warning: Failed to copy SUSFS fs files."
+        cp "${SUSFS_PATCH_DIR}/include/linux/"* ./include/linux/ || echo "Warning: Failed to copy SUSFS include/linux files."
+        #cp "${SUSFS_PATCH_DIR}/KernelSU/10_enable_susfs_for_ksu.patch" "${KSU_NEXT_DIR}/" # Example if needed
+
+        # Copy specific patches to a temporary location or apply directly
+        # Using a temporary dir might be cleaner if patches expect to be in current dir
+        cp "${SUSFS_PATCH_DIR}/50_add_susfs_in_kernel-5.4.patch" ./ || echo "Warning: Failed to copy 50_add_susfs..."
+        cp "${OTHER_PATCH_DIR}/69_hide_stuff.patch" ./ || echo "Warning: Failed to copy 69_hide_stuff..."
+        cp "${OTHER_PATCH_DIR}/next/next_hooks.patch" ./ || echo "Warning: Failed to copy next_hooks..."
+        cp "${OTHER_PATCH_DIR}/next/syscall_hooks.patch" ./ || echo "Warning: Failed to copy syscall_hooks..."
+
+        # Apply patches (adjust -p level if necessary)
+        patch -p1 --forward --fuzz=3 < syscall_hooks.patch || echo "Warning: syscall_hooks.patch may have failed or been applied."
+        patch -p1 --forward --fuzz=3 < next_hooks.patch || echo "Warning: next_hooks.patch may have failed or been applied."
+        patch -p1 --forward --fuzz=3 < 50_add_susfs_in_kernel-5.4.patch || echo "Warning: 50_add_susfs patch may have failed or been applied."
+        patch -p1 --forward --fuzz=3 < 69_hide_stuff.patch || echo "Warning: 69_hide_stuff patch may have failed or been applied."
+
+        # Clean up copied patch files
+        rm syscall_hooks.patch next_hooks.patch 50_add_susfs_in_kernel-5.4.patch 69_hide_stuff.patch
+
+        # Example for patching within KernelSU-Next (if needed)
+        # cd "${KSU_NEXT_DIR}"
+        # cp "${OTHER_PATCH_DIR}/0001-kernel-patch-susfs-v1.5.5-to-KernelSU-Next-v1.0.5.patch" ./
+        # patch -p1 --forward < 0001-kernel-patch-susfs-v1.5.5-to-KernelSU-Next-v1.0.5.patch || echo "Warning: KernelSU SUSFS patch may have been already applied or failed."
+        # rm 0001-kernel-patch-susfs-v1.5.5-to-KernelSU-Next-v1.0.5.patch
+        # cd .. # Return to kernel source root
+      shell: bash
+
+    - name: Configure Kernel (Add KSU/SUSFS Options to Defconfig)
+      # Working directory is the kernel source root
+      working-directory: ${{ env.KERNEL_WORKSPACE }}/${{ env.KERNEL_SOURCE_DIR }}
+      run: |
+        set -euxo pipefail
+        # DEFCONFIG_TARGET is the *primary* defconfig file used in the build command.
+        # Adjust path if needed. Assumes vendor configs are under arch/arm64/configs/
+        DEFCONFIG_TARGET="arch/arm64/configs/vendor/lahaina-qgki_defconfig"
+        # Check if the target defconfig exists
+        if [ ! -f "$DEFCONFIG_TARGET" ]; then
+          echo "Error: Target defconfig '$DEFCONFIG_TARGET' not found!"
+          # Optionally list available defconfigs for debugging: find arch/arm64/configs -name '*defconfig'
+          exit 1
+        fi
+        echo "Appending KSU/SUSFS and other configs to $DEFCONFIG_TARGET..."
+        # Add KernelSU/SUSFS configuration settings
+        echo "CONFIG_KSU=y" >> $DEFCONFIG_TARGET
+        echo "CONFIG_KSU_SUSFS=y" >> $DEFCONFIG_TARGET
+        echo "CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y" >> $DEFCONFIG_TARGET
+        echo "CONFIG_KSU_SUSFS_SUS_PATH=y" >> $DEFCONFIG_TARGET
+        echo "CONFIG_KSU_SUSFS_SUS_MOUNT=y" >> $DEFCONFIG_TARGET
+        echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y" >> $DEFCONFIG_TARGET
+        echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y" >> $DEFCONFIG_TARGET
+        echo "CONFIG_KSU_SUSFS_SUS_KSTAT=y" >> $DEFCONFIG_TARGET
+        echo "CONFIG_KSU_SUSFS_SUS_OVERLAYFS=y" >> $DEFCONFIG_TARGET
+        echo "CONFIG_KSU_SUSFS_TRY_UMOUNT=y" >> $DEFCONFIG_TARGET
+        echo "CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT=y" >> $DEFCONFIG_TARGET
+        echo "CONFIG_KSU_SUSFS_SPOOF_UNAME=y" >> $DEFCONFIG_TARGET
+        echo "CONFIG_KSU_SUSFS_ENABLE_LOG=y" >> $DEFCONFIG_TARGET
+        echo "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y" >> $DEFCONFIG_TARGET
+        echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y" >> $DEFCONFIG_TARGET
+        echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y" >> $DEFCONFIG_TARGET
+        echo "CONFIG_KSU_SUSFS_SUS_SU=n" >> $DEFCONFIG_TARGET # Make sure this is intended
+        echo "CONFIG_KSU_WITH_KPROBES=n" >> $DEFCONFIG_TARGET # Make sure this is intended
+        # Add other required configs
+        echo "CONFIG_COMPAT=y" >> $DEFCONFIG_TARGET
+        echo "CONFIG_TMPFS_XATTR=y" >> $DEFCONFIG_TARGET
+        echo "CONFIG_TMPFS_POSIX_ACL=y" >> $DEFCONFIG_TARGET
+        echo "CONFIG_IP_NF_TARGET_TTL=y" >> $DEFCONFIG_TARGET
+        echo "CONFIG_IP6_NF_TARGET_HL=y" >> $DEFCONFIG_TARGET
+        echo "CONFIG_IP6_NF_MATCH_HL=y" >> $DEFCONFIG_TARGET
+        echo "Successfully appended configs."
+      shell: bash
+
+    - name: Build Kernel
+      # Working directory is the kernel source root
+      working-directory: ${{ env.KERNEL_WORKSPACE }}/${{ env.KERNEL_SOURCE_DIR }}
+      run: |
+        set -euxo pipefail
+        # Set Environment Variables for Build
+        export ARCH=arm64
+        export SUBARCH=arm64
+        # Point PATH to the downloaded Clang toolchain
+        export PATH="${{ env.KERNEL_WORKSPACE }}/clang-aosp/bin:$PATH"
+        export CLANG_TRIPLE="aarch64-linux-gnu-"
+        export CROSS_COMPILE="aarch64-linux-gnu-"
+        export CROSS_COMPILE_ARM32="arm-linux-gnueabi-" # Needed for vdso32 etc.
+        export KBUILD_BUILD_USER="GithubActions" # Or use ${{ github.actor }}
+        export KBUILD_BUILD_HOST="github.com"
+        export LLVM=1
+        export LLVM_IAS=1
+
+        # Define Make parameters
+        MAKE_PARAMS=(
+            O=out
+            ARCH=arm64
+            SUBARCH=arm64
+            CC=clang
+            LD=ld.lld
+        )
+
+        # Define Defconfigs (relative to source root)
+        # These will be merged into out/.config
+        DEFCONFIGS="vendor/lahaina-qgki_defconfig vendor/oplus_yupik_QGKI.config"
+
+        # Generate .config file
+        echo "Generating .config using '${DEFCONFIGS}'..."
+        make "${MAKE_PARAMS[@]}" ${DEFCONFIGS}
+
+        # Start Compilation
+        echo "Starting kernel build..."
+        make -j$(nproc --all) "${MAKE_PARAMS[@]}"
+
+        # Check if Image exists after build
+        if [ ! -f "out/arch/arm64/boot/Image" ]; then
+            echo "Error: Kernel Image (out/arch/arm64/boot/Image) not found after build!"
+            exit 1
+        fi
+        echo "Kernel build completed successfully."
+        # Set flag for artifact steps
+        echo "CHECK_IMAGE=true" >> $GITHUB_ENV
+      shell: bash
+
+    - name: Prepare AnyKernel3 Package
+      # Only run if the kernel build was successful
+      if: env.CHECK_IMAGE == 'true'
+      # Working directory is the main workspace where AnyKernel3 was cloned
+      working-directory: ${{ env.KERNEL_WORKSPACE }}
+      run: |
+        set -euxo pipefail
+        echo "Preparing AnyKernel3 zip..."
+        # Modify anykernel.sh script in the cloned AnyKernel3 directory
+        sed -i 's/do.devicecheck=1/do.devicecheck=0/g' AnyKernel3/anykernel.sh
+        sed -i 's!block=/dev/block/platform/omap/omap_hsmmc.0/by-name/boot;!block=auto;!g' AnyKernel3/anykernel.sh # Use example block line pattern
+        sed -i 's/is_slot_device=0;/is_slot_device=auto;/g' AnyKernel3/anykernel.sh # Use example is_slot_device line pattern
+
+        # Copy the built kernel Image into the AnyKernel3 directory
+        cp "${{ env.KERNEL_SOURCE_DIR }}/out/arch/arm64/boot/Image" AnyKernel3/
+
+        # Optional: Copy DTB/DTBO if needed (adjust paths/names)
+        # cp "${{ env.KERNEL_SOURCE_DIR }}/out/arch/arm64/boot/dts/vendor/qcom/lahaina-*.dtb" AnyKernel3/dtb || echo "No DTB files found or needed."
+        # cp "${{ env.KERNEL_SOURCE_DIR }}/out/arch/arm64/boot/dtbo.img" AnyKernel3/ || echo "No dtbo.img found or needed."
+
+        # Clean up unnecessary files from AnyKernel3 before zipping (optional)
+        rm -rf AnyKernel3/.git* AnyKernel3/README.md AnyKernel3/.github
+
+        # Create the zip file (from within the AnyKernel3 directory for correct structure)
+        cd AnyKernel3
+        zip -r9 "../AK3-PixelOS-lunaa-KSU-Next-${{ env.KSUVER }}-${{ env.BUILD_TIME }}.zip" * -x README.md .git* placeholder .github*
+        cd .. # Go back to KERNEL_WORKSPACE
+        echo "AnyKernel3 zip created."
+      shell: bash
+
+    - name: Upload Kernel Image Artifact
+      if: env.CHECK_IMAGE == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: Image-lunaa-KSU-${{ env.KSUVER }}-${{ env.BUILD_TIME }}
+        path: ${{ env.KERNEL_WORKSPACE }}/${{ env.KERNEL_SOURCE_DIR }}/out/arch/arm64/boot/Image
+        if-no-files-found: error # Fail the workflow if Image is missing
+
+    - name: Upload AnyKernel3 Zip Artifact
+      if: env.CHECK_IMAGE == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: AK3-PixelOS-lunaa-KSU-Next-${{ env.KSUVER }}-${{ env.BUILD_TIME }}
+        # Path to the generated zip file in the KERNEL_WORKSPACE directory
+        path: ${{ env.KERNEL_WORKSPACE }}/AK3-PixelOS-lunaa-KSU-Next-${{ env.KSUVER }}-${{ env.BUILD_TIME }}.zip
+        if-no-files-found: error # Fail the workflow if zip is missing
