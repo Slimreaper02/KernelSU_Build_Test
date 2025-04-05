@@ -68,6 +68,76 @@ jobs:
         # Remove "-dirty" suffix from local version
         sed -i 's/ -dirty//g' scripts/setlocalversion
       shell: bash
+      
+    - name: Integrate path_umount.c
+      id: integrate_path_umount
+      # Working directory must be the kernel source root
+      working-directory: ${{ env.KERNEL_WORKSPACE }}/${{ env.KERNEL_SOURCE_DIR }}
+      run: |
+        set -euxo pipefail
+        echo "Starting integration of path_umount.c..."
+
+        # Define paths relative to the working directory (kernel source root)
+        SOURCE_FILE="../kernel_patches/path_umount.c" # path_umount.c in the cloned patches repo
+        TARGET_DIR="fs"
+        TARGET_MAKEFILE="${TARGET_DIR}/Makefile"
+        MAKEFILE_ENTRY='obj-$(CONFIG_KSU_SUSFS) += path_umount.o'
+        # This is an anchor line in fs/Makefile to insert after. ADJUST IF NEEDED!
+        MAKEFILE_ANCHOR_LINE='namespace.o'
+
+        # 1. Check if source file exists
+        if [ ! -f "$SOURCE_FILE" ]; then
+          echo "Error: Source file '$SOURCE_FILE' not found!"
+          exit 1
+        fi
+        echo "Source file found: $SOURCE_FILE"
+
+        # 2. Check if target directory exists
+        if [ ! -d "$TARGET_DIR" ]; then
+          echo "Error: Target directory '$TARGET_DIR' not found!"
+          exit 1
+        fi
+        echo "Target directory found: $TARGET_DIR"
+
+        # 3. Copy the file
+        echo "Copying '$SOURCE_FILE' to '$TARGET_DIR/'..."
+        cp -v "$SOURCE_FILE" "$TARGET_DIR/" || { echo "Error: Failed to copy file."; exit 1; }
+        echo "File copied successfully."
+
+        # 4. Check if Makefile exists
+        if [ ! -f "$TARGET_MAKEFILE" ]; then
+          echo "Error: Target Makefile '$TARGET_MAKEFILE' not found!"
+          exit 1
+        fi
+        echo "Target Makefile found: $TARGET_MAKEFILE"
+
+        # 5. Modify the Makefile
+        echo "Checking if Makefile entry '$MAKEFILE_ENTRY' already exists..."
+        # Use grep -F (fixed string) -x (whole line) to check precisely
+        if grep -qFx "$MAKEFILE_ENTRY" "$TARGET_MAKEFILE"; then
+          echo "Makefile entry already exists. No changes needed."
+        else
+          echo "Makefile entry not found. Attempting to add..."
+          # Try to insert after the anchor line (safer than appending randomly)
+          if grep -q "$MAKEFILE_ANCHOR_LINE" "$TARGET_MAKEFILE" && \
+             sed -i "/${MAKEFILE_ANCHOR_LINE}/a ${MAKEFILE_ENTRY}" "$TARGET_MAKEFILE"; then
+             echo "Successfully inserted entry into '$TARGET_MAKEFILE' after '$MAKEFILE_ANCHOR_LINE'."
+          else
+             # Fallback: Append if anchor not found or sed failed
+             echo "Warning: Anchor line '$MAKEFILE_ANCHOR_LINE' not found or sed failed. Appending entry to '$TARGET_MAKEFILE'."
+             echo "$MAKEFILE_ENTRY" >> "$TARGET_MAKEFILE"
+             echo "Entry appended."
+          fi
+          # Verify addition
+          if grep -qFx "$MAKEFILE_ENTRY" "$TARGET_MAKEFILE"; then
+             echo "Verified: Makefile entry successfully added."
+          else
+             echo "Error: Failed to add Makefile entry after attempting insertion/append!"
+             exit 1
+          fi
+        fi
+        echo "Integration of path_umount.c finished."
+      shell: bash
 
     - name: Setup KernelSU (Submodule Integration)
       # Working directory is the kernel source root
