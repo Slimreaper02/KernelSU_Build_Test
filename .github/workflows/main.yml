@@ -164,18 +164,17 @@ jobs:
         set -euxo pipefail
     
         MAKEFILE="fs/Makefile"
-        ENTRY="obj-$(CONFIG_KSU_SUSFS) += path_umount.o"
+        ENTRY="obj-\$(CONFIG_KSU_SUSFS) += path_umount.o"
         ANCHOR="namespace.o"
-        
-        # Check if path_umount.o is already present in the Makefile
+    
+        # Check if path_umount.o is already present
         if ! grep -q "path_umount.o" "$MAKEFILE"; then
           echo "Patching $MAKEFILE to include path_umount.o..."
-          
-          # Add the entry after 'namespace.o' with proper indentation
           sed -i "/$ANCHOR/a \t$ENTRY" "$MAKEFILE"
         else
           echo "path_umount.o is already present in $MAKEFILE, skipping."
         fi
+
 
     - name: Configure Kernel (Add KSU/SUSFS Options to Defconfig)
       # Working directory is the kernel source root
