@@ -158,19 +158,21 @@ jobs:
           exit 1
         fi
 
-    - name: Patch fs/Makefile for path_umount.c
+    - name: Patch fs/Makefile for path_umount.o
       working-directory: ${{ env.KERNEL_WORKSPACE }}/${{ env.KERNEL_SOURCE_DIR }}
       run: |
         set -euxo pipefail
     
         MAKEFILE="fs/Makefile"
-        ENTRY="obj-\$(CONFIG_KSU_SUSFS) += path_umount.o"
+        ENTRY="obj-$(CONFIG_KSU_SUSFS) += path_umount.o"
         ANCHOR="namespace.o"
-    
-        # Only add entry if it's not already in the file
+        
+        # Check if path_umount.o is already present in the Makefile
         if ! grep -q "path_umount.o" "$MAKEFILE"; then
           echo "Patching $MAKEFILE to include path_umount.o..."
-          sed -i "/$ANCHOR/a $ENTRY" "$MAKEFILE"
+          
+          # Add the entry after 'namespace.o' with proper indentation
+          sed -i "/$ANCHOR/a \t$ENTRY" "$MAKEFILE"
         else
           echo "path_umount.o is already present in $MAKEFILE, skipping."
         fi
