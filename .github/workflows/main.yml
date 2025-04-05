@@ -139,6 +139,25 @@ jobs:
     
       shell: bash
 
+    - name: Copy path_umount.c to fs/
+      working-directory: ${{ env.KERNEL_WORKSPACE }}/${{ env.KERNEL_SOURCE_DIR }}
+      run: |
+        set -euxo pipefail
+    
+        # Define the source and destination paths
+        PATCHES_DIR="${GITHUB_WORKSPACE}/patches"
+        KERNEL_FS_DIR="${{ env.KERNEL_WORKSPACE }}/${{ env.KERNEL_SOURCE_DIR }}/fs"
+    
+        # Check if the path_umount.c file exists in the patches folder
+        if [[ -f "$PATCHES_DIR/path_umount.c" ]]; then
+          # Copy path_umount.c from patches to fs/
+          cp "$PATCHES_DIR/path_umount.c" "$KERNEL_FS_DIR/"
+          echo "path_umount.c has been copied to fs/ directory."
+        else
+          echo "path_umount.c not found in patches folder, skipping copy."
+          exit 1
+        fi
+
     - name: Patch fs/Makefile for path_umount.c
       working-directory: ${{ env.KERNEL_WORKSPACE }}/${{ env.KERNEL_SOURCE_DIR }}
       run: |
