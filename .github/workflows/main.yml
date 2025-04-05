@@ -67,6 +67,8 @@ jobs:
         cd ${{ env.KERNEL_SOURCE_DIR }}
         # Remove "-dirty" suffix from local version
         sed -i 's/ -dirty//g' scripts/setlocalversion
+        cd $GITHUB_WORKSPACE/patches
+        sed -i '1655 r path_umount.c' $GITHUB_WORKSPACE/kernel_workspace/android-kernel/fs/namespace.c      
       shell: bash
       
     - name: Setup KernelSU (Submodule Integration)
@@ -138,42 +140,6 @@ jobs:
         rm -f syscall_hooks.patch next_hooks.patch 50_add_susfs_in_kernel-5.4.patch 69_hide_stuff.patch add_path_umount.patch
     
       shell: bash
-
-    - name: Copy path_umount.c to fs/
-      working-directory: ${{ env.KERNEL_WORKSPACE }}/${{ env.KERNEL_SOURCE_DIR }}
-      run: |
-        set -euxo pipefail
-    
-        # Define the source and destination paths
-        PATCHES_DIR="${GITHUB_WORKSPACE}/patches"
-        KERNEL_FS_DIR="${{ env.KERNEL_WORKSPACE }}/${{ env.KERNEL_SOURCE_DIR }}/fs"
-    
-        # Check if the path_umount.c file exists in the patches folder
-        if [[ -f "$PATCHES_DIR/path_umount.c" ]]; then
-          # Copy path_umount.c from patches to fs/
-          cp "$PATCHES_DIR/path_umount.c" "$KERNEL_FS_DIR/"
-          echo "path_umount.c has been copied to fs/ directory."
-        else
-          echo "path_umount.c not found in patches folder, skipping copy."
-          exit 1
-        fi
-
-    - name: Patch fs/Makefile for path_umount.o
-      working-directory: ${{ env.KERNEL_WORKSPACE }}/${{ env.KERNEL_SOURCE_DIR }}
-      run: |
-        set -euxo pipefail
-    
-        MAKEFILE="fs/Makefile"
-        ENTRY='obj-$(CONFIG_KSU_SUSFS) += path_umount.o'
-        ANCHOR="namespace.o"
-    
-        # Only patch if not already present
-        if ! grep -q "path_umount.o" "$MAKEFILE"; then
-          echo "Patching $MAKEFILE to include path_umount.o..."
-          sed -i "/$ANCHOR/a $ENTRY" "$MAKEFILE"
-        else
-          echo "path_umount.o is already present in $MAKEFILE, skipping."
-        fi
 
     - name: Configure Kernel (Add KSU/SUSFS Options to Defconfig)
       # Working directory is the kernel source root
