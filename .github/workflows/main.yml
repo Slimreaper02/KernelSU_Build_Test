@@ -66,9 +66,7 @@ jobs:
         git clone --recursive --depth=1 https://github.com/Slimreaper02/kernel_oneplus_sm8350 -b fifteen ${{ env.KERNEL_SOURCE_DIR }}
         cd ${{ env.KERNEL_SOURCE_DIR }}
         # Remove "-dirty" suffix from local version
-        sed -i 's/ -dirty//g' scripts/setlocalversion
-        cd $GITHUB_WORKSPACE/patches
-        sed -i '1655 r path_umount.c' $GITHUB_WORKSPACE/kernel_workspace/android-kernel/fs/namespace.c      
+        sed -i 's/ -dirty//g' scripts/setlocalversion     
       shell: bash
       
     - name: Setup KernelSU (Submodule Integration)
