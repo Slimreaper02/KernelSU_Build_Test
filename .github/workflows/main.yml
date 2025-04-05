@@ -90,7 +90,7 @@ jobs:
         echo "Calculated KSU_VERSION: $KSU_VERSION"
         echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
         # Update KSU version in its Makefile
-        sed -i "s/^\(CONFIG_KSU_VERSION[[:space:]]*=[[:space:]]*\"\).*\(\".*\)$/\1${KSU_VERSION}\2/" ../core/config.c || echo "Warning: Could not set KSU_VERSION in config.c"
+        #sed -i "s/^\(CONFIG_KSU_VERSION[[:space:]]*=[[:space:]]*\"\).*\(\".*\)$/\1${KSU_VERSION}\2/" ../core/config.c || echo "Warning: Could not set KSU_VERSION in config.c"
         sed -i "s/DKSU_VERSION=11998/DKSU_VERSION=${KSU_VERSION}/" Makefile || echo "Warning: Could not set DKSU_VERSION in Makefile"
       shell: bash
 
@@ -126,7 +126,7 @@ jobs:
 
         # Apply patches (adjust -p level if necessary)
         patch -p1 --forward --fuzz=3 < syscall_hooks.patch || echo "Warning: syscall_hooks.patch may have failed or been applied."
-        patch -p1 --forward --fuzz=3 < next_hooks.patch || echo "Warning: next_hooks.patch may have failed or been applied."
+        #patch -p1 --forward --fuzz=3 < next_hooks.patch || echo "Warning: next_hooks.patch may have failed or been applied."
         patch -p1 --forward --fuzz=3 < 50_add_susfs_in_kernel-5.4.patch || echo "Warning: 50_add_susfs patch may have failed or been applied."
         patch -p1 --forward --fuzz=3 < 69_hide_stuff.patch || echo "Warning: 69_hide_stuff patch may have failed or been applied."
 
