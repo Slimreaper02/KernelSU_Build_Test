@@ -78,7 +78,7 @@ jobs:
         echo "Starting integration of path_umount.c..."
 
         # Define paths relative to the working directory (kernel source root)
-        SOURCE_FILE="../kernel_patches/path_umount.c" # path_umount.c in the cloned patches repo
+        SOURCE_FILE="patches/path_umount.c" # path_umount.c in the cloned patches repo
         TARGET_DIR="fs"
         TARGET_MAKEFILE="${TARGET_DIR}/Makefile"
         MAKEFILE_ENTRY='obj-$(CONFIG_KSU_SUSFS) += path_umount.o'
