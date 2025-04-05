@@ -69,76 +69,6 @@ jobs:
         sed -i 's/ -dirty//g' scripts/setlocalversion
       shell: bash
       
-    - name: Integrate path_umount.c
-      id: integrate_path_umount
-      # Working directory must be the kernel source root
-      working-directory: ${{ env.KERNEL_WORKSPACE }}/${{ env.KERNEL_SOURCE_DIR }}
-      run: |
-        set -euxo pipefail
-        echo "Starting integration of path_umount.c..."
-
-        # Define paths relative to the working directory (kernel source root)
-        SOURCE_FILE="patches/path_umount.c" # path_umount.c in the cloned patches repo
-        TARGET_DIR="fs"
-        TARGET_MAKEFILE="${TARGET_DIR}/Makefile"
-        MAKEFILE_ENTRY='obj-$(CONFIG_KSU_SUSFS) += path_umount.o'
-        # This is an anchor line in fs/Makefile to insert after. ADJUST IF NEEDED!
-        MAKEFILE_ANCHOR_LINE='namespace.o'
-
-        # 1. Check if source file exists
-        if [ ! -f "$SOURCE_FILE" ]; then
-          echo "Error: Source file '$SOURCE_FILE' not found!"
-          exit 1
-        fi
-        echo "Source file found: $SOURCE_FILE"
-
-        # 2. Check if target directory exists
-        if [ ! -d "$TARGET_DIR" ]; then
-          echo "Error: Target directory '$TARGET_DIR' not found!"
-          exit 1
-        fi
-        echo "Target directory found: $TARGET_DIR"
-
-        # 3. Copy the file
-        echo "Copying '$SOURCE_FILE' to '$TARGET_DIR/'..."
-        cp -v "$SOURCE_FILE" "$TARGET_DIR/" || { echo "Error: Failed to copy file."; exit 1; }
-        echo "File copied successfully."
-
-        # 4. Check if Makefile exists
-        if [ ! -f "$TARGET_MAKEFILE" ]; then
-          echo "Error: Target Makefile '$TARGET_MAKEFILE' not found!"
-          exit 1
-        fi
-        echo "Target Makefile found: $TARGET_MAKEFILE"
-
-        # 5. Modify the Makefile
-        echo "Checking if Makefile entry '$MAKEFILE_ENTRY' already exists..."
-        # Use grep -F (fixed string) -x (whole line) to check precisely
-        if grep -qFx "$MAKEFILE_ENTRY" "$TARGET_MAKEFILE"; then
-          echo "Makefile entry already exists. No changes needed."
-        else
-          echo "Makefile entry not found. Attempting to add..."
-          # Try to insert after the anchor line (safer than appending randomly)
-          if grep -q "$MAKEFILE_ANCHOR_LINE" "$TARGET_MAKEFILE" && \
-             sed -i "/${MAKEFILE_ANCHOR_LINE}/a ${MAKEFILE_ENTRY}" "$TARGET_MAKEFILE"; then
-             echo "Successfully inserted entry into '$TARGET_MAKEFILE' after '$MAKEFILE_ANCHOR_LINE'."
-          else
-             # Fallback: Append if anchor not found or sed failed
-             echo "Warning: Anchor line '$MAKEFILE_ANCHOR_LINE' not found or sed failed. Appending entry to '$TARGET_MAKEFILE'."
-             echo "$MAKEFILE_ENTRY" >> "$TARGET_MAKEFILE"
-             echo "Entry appended."
-          fi
-          # Verify addition
-          if grep -qFx "$MAKEFILE_ENTRY" "$TARGET_MAKEFILE"; then
-             echo "Verified: Makefile entry successfully added."
-          else
-             echo "Error: Failed to add Makefile entry after attempting insertion/append!"
-             exit 1
-          fi
-        fi
-        echo "Integration of path_umount.c finished."
-      shell: bash
-
     - name: Setup KernelSU (Submodule Integration)
       # Working directory is the kernel source root
       working-directory: ${{ env.KERNEL_WORKSPACE }}/${{ env.KERNEL_SOURCE_DIR }}
@@ -165,51 +95,64 @@ jobs:
       shell: bash
 
     - name: Setup SUSFS Patches
-      # Working directory is the kernel source root
       working-directory: ${{ env.KERNEL_WORKSPACE }}/${{ env.KERNEL_SOURCE_DIR }}
       run: |
         set -euxo pipefail
         # Define patch locations relative to the current working directory (kernel source root)
-        SUSFS_PATCH_DIR="../susfs4ksu/kernel_patches" # Relative to android-kernel
-        OTHER_PATCH_DIR="../kernel_patches"         # Relative to android-kernel
+        SUSFS_PATCH_DIR="../susfs4ksu/kernel_patches"
+        OTHER_PATCH_DIR="../kernel_patches"
+        PATCHES_DIR="../patches"
         KSU_NEXT_DIR="KernelSU-Next"
-
+    
         # Check if patch directories exist
         if [ ! -d "$SUSFS_PATCH_DIR" ]; then echo "Error: SUSFS patch directory not found at $SUSFS_PATCH_DIR"; exit 1; fi
         if [ ! -d "$OTHER_PATCH_DIR" ]; then echo "Error: Other patch directory not found at $OTHER_PATCH_DIR"; exit 1; fi
+        if [ ! -d "$PATCHES_DIR" ]; then echo "Error: Patches directory not found at $PATCHES_DIR"; exit 1; fi
         if [ ! -d "$KSU_NEXT_DIR" ]; then echo "Error: KernelSU-Next directory not found at $KSU_NEXT_DIR"; exit 1; fi
-
-        # Create target directories if they don't exist (adjust paths if needed based on kernel structure)
+    
+        # Create target directories if they don't exist
         mkdir -p ./fs ./include/linux
-
-        # Copy SUSFS files (adjust source paths if needed within susfs4ksu repo)
+    
+        # Copy SUSFS files
         cp "${SUSFS_PATCH_DIR}/fs/"* ./fs/ || echo "Warning: Failed to copy SUSFS fs files."
         cp "${SUSFS_PATCH_DIR}/include/linux/"* ./include/linux/ || echo "Warning: Failed to copy SUSFS include/linux files."
-        #cp "${SUSFS_PATCH_DIR}/KernelSU/10_enable_susfs_for_ksu.patch" "${KSU_NEXT_DIR}/" # Example if needed
-
-        # Copy specific patches to a temporary location or apply directly
-        # Using a temporary dir might be cleaner if patches expect to be in current dir
+    
+        # Copy specific patches to workspace
         cp "${SUSFS_PATCH_DIR}/50_add_susfs_in_kernel-5.4.patch" ./ || echo "Warning: Failed to copy 50_add_susfs..."
         cp "${OTHER_PATCH_DIR}/69_hide_stuff.patch" ./ || echo "Warning: Failed to copy 69_hide_stuff..."
         cp "${OTHER_PATCH_DIR}/next/next_hooks.patch" ./ || echo "Warning: Failed to copy next_hooks..."
         cp "${OTHER_PATCH_DIR}/next/syscall_hooks.patch" ./ || echo "Warning: Failed to copy syscall_hooks..."
-
-        # Apply patches (adjust -p level if necessary)
+    
+        # NEW: Copy and apply the path_umount patch from top-level patches directory
+        cp "${PATCHES_DIR}/add_path_umount.patch" ./ || echo "Warning: Failed to copy add_path_umount.patch"
+        patch -p1 --forward --fuzz=3 < add_path_umount.patch || echo "Warning: path_umount patch may have failed or already been applied."
+    
+        # Apply other patches
         patch -p1 --forward --fuzz=3 < syscall_hooks.patch || echo "Warning: syscall_hooks.patch may have failed or been applied."
-        #patch -p1 --forward --fuzz=3 < next_hooks.patch || echo "Warning: next_hooks.patch may have failed or been applied."
         patch -p1 --forward --fuzz=3 < 50_add_susfs_in_kernel-5.4.patch || echo "Warning: 50_add_susfs patch may have failed or been applied."
         patch -p1 --forward --fuzz=3 < 69_hide_stuff.patch || echo "Warning: 69_hide_stuff patch may have failed or been applied."
-
+    
         # Clean up copied patch files
-        rm syscall_hooks.patch next_hooks.patch 50_add_susfs_in_kernel-5.4.patch 69_hide_stuff.patch
-
-        # Example for patching within KernelSU-Next (if needed)
-        # cd "${KSU_NEXT_DIR}"
-        # cp "${OTHER_PATCH_DIR}/0001-kernel-patch-susfs-v1.5.5-to-KernelSU-Next-v1.0.5.patch" ./
-        # patch -p1 --forward < 0001-kernel-patch-susfs-v1.5.5-to-KernelSU-Next-v1.0.5.patch || echo "Warning: KernelSU SUSFS patch may have been already applied or failed."
-        # rm 0001-kernel-patch-susfs-v1.5.5-to-KernelSU-Next-v1.0.5.patch
-        # cd .. # Return to kernel source root
+        rm -f syscall_hooks.patch next_hooks.patch 50_add_susfs_in_kernel-5.4.patch 69_hide_stuff.patch add_path_umount.patch
+    
       shell: bash
+
+    - name: Patch fs/Makefile for path_umount.c
+      working-directory: ${{ env.KERNEL_WORKSPACE }}/${{ env.KERNEL_SOURCE_DIR }}
+      run: |
+        set -euxo pipefail
+    
+        MAKEFILE="fs/Makefile"
+        ENTRY="obj-\$(CONFIG_KSU_SUSFS) += path_umount.o"
+        ANCHOR="namespace.o"
+    
+        # Only add entry if it's not already in the file
+        if ! grep -q "path_umount.o" "$MAKEFILE"; then
+          echo "Patching $MAKEFILE to include path_umount.o..."
+          sed -i "/$ANCHOR/a $ENTRY" "$MAKEFILE"
+        else
+          echo "path_umount.o is already present in $MAKEFILE, skipping."
+        fi
 
     - name: Configure Kernel (Add KSU/SUSFS Options to Defconfig)
       # Working directory is the kernel source root
