@@ -37,7 +37,6 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
         git clone --recursive https://github.com/Slimreaper02/kernel_oneplus_sm8350 -b fifteen android-kernel --depth=1
-        git clone --depth=1 https://gitlab.com/simonpunk/susfs4ksu.git -b kernel-5.4 susfs4ksu
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel/scripts
         sed -i 's/ -dirty//g' setlocalversion
         cd $GITHUB_WORKSPACE/patches
@@ -49,51 +48,6 @@ jobs:
         curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s main
         KSU_VERSION=$(cd KernelSU && expr $(/usr/bin/git rev-list --count HEAD) + 10200)
         echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
-
-    - name: Setup SUSFS Patches
-      working-directory: ${{ env.KERNEL_WORKSPACE }}/${{ env.KERNEL_SOURCE_DIR }}
-      run: |
-        set -euxo pipefail
-        # Print directory structure for debugging
-        ls -R
-        # Define patch locations relative to the current working directory (kernel source root)
-        SUSFS_PATCH_DIR="../susfs4ksu/kernel_patches"
-        OTHER_PATCH_DIR="../kernel_patches"
-        PATCHES_DIR="${GITHUB_WORKSPACE}/patches"
-        KSU_NEXT_DIR="KernelSU-Next"
-    
-        # Check if patch directories exist
-        if [ ! -d "$SUSFS_PATCH_DIR" ]; then echo "Error: SUSFS patch directory not found at $SUSFS_PATCH_DIR"; exit 1; fi
-        if [ ! -d "$OTHER_PATCH_DIR" ]; then echo "Error: Other patch directory not found at $OTHER_PATCH_DIR"; exit 1; fi
-        if [ ! -d "$PATCHES_DIR" ]; then echo "Error: Patches directory not found at $PATCHES_DIR"; exit 1; fi
-        if [ ! -d "$KSU_NEXT_DIR" ]; then echo "Error: KernelSU-Next directory not found at $KSU_NEXT_DIR"; exit 1; fi
-    
-        # Create target directories if they don't exist
-        mkdir -p ./fs ./include/linux
-    
-        # Copy SUSFS files
-        cp "${SUSFS_PATCH_DIR}/fs/"* ./fs/ || echo "Warning: Failed to copy SUSFS fs files."
-        cp "${SUSFS_PATCH_DIR}/include/linux/"* ./include/linux/ || echo "Warning: Failed to copy SUSFS include/linux files."
-    
-        # Copy specific patches to workspace
-        cp "${SUSFS_PATCH_DIR}/50_add_susfs_in_kernel-5.4.patch" ./ || echo "Warning: Failed to copy 50_add_susfs..."
-        cp "${OTHER_PATCH_DIR}/69_hide_stuff.patch" ./ || echo "Warning: Failed to copy 69_hide_stuff..."
-        cp "${OTHER_PATCH_DIR}/next/next_hooks.patch" ./ || echo "Warning: Failed to copy next_hooks..."
-        cp "${OTHER_PATCH_DIR}/next/syscall_hooks.patch" ./ || echo "Warning: Failed to copy syscall_hooks..."
-    
-        # NEW: Copy and apply the path_umount patch from top-level patches directory
-        cp "${PATCHES_DIR}/add_path_umount.patch" ./ || echo "Warning: Failed to copy add_path_umount.patch"
-        patch -p1 --forward --fuzz=3 < add_path_umount.patch || echo "Warning: path_umount patch may have failed or already been applied."
-    
-        # Apply other patches
-        patch -p1 --forward --fuzz=3 < syscall_hooks.patch || echo "Warning: syscall_hooks.patch may have failed or been applied."
-        patch -p1 --forward --fuzz=3 < 50_add_susfs_in_kernel-5.4.patch || echo "Warning: 50_add_susfs patch may have failed or been applied."
-        patch -p1 --forward --fuzz=3 < 69_hide_stuff.patch || echo "Warning: 69_hide_stuff patch may have failed or been applied."
-    
-        # Clean up copied patch files
-        rm -f syscall_hooks.patch next_hooks.patch 50_add_susfs_in_kernel-5.4.patch 69_hide_stuff.patch add_path_umount.patch
-    
-      shell: bash
 
     - name: Build kernel for lunaa
       run: |
