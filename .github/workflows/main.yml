@@ -51,8 +51,6 @@ jobs:
       working-directory: ${{ env.KERNEL_WORKSPACE }}
       run: |
         set -euxo pipefail
-        # Clone AnyKernel3 (only once)
-        git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git -b master AnyKernel3
         # Clone SUSFS patches
         git clone --depth=1 https://gitlab.com/simonpunk/susfs4ksu.git -b kernel-5.4 susfs4ksu
         # Clone other kernel patches
@@ -230,49 +228,26 @@ jobs:
         echo "CHECK_IMAGE=true" >> $GITHUB_ENV
       shell: bash
 
-    - name: Prepare AnyKernel3 Package
-      # Only run if the kernel build was successful
+    - name: Make Anykernel3
       if: env.CHECK_IMAGE == 'true'
-      # Working directory is the main workspace where AnyKernel3 was cloned
-      working-directory: ${{ env.KERNEL_WORKSPACE }}
       run: |
-        set -euxo pipefail
-        echo "Preparing AnyKernel3 zip..."
-        # Modify anykernel.sh script in the cloned AnyKernel3 directory
+        cd $GITHUB_WORKSPACE/kernel_workspace
+        git clone https://github.com/osm0sis/AnyKernel3 --depth=1 AnyKernel3
         sed -i 's/do.devicecheck=1/do.devicecheck=0/g' AnyKernel3/anykernel.sh
-        sed -i 's!block=/dev/block/platform/omap/omap_hsmmc.0/by-name/boot;!block=auto;!g' AnyKernel3/anykernel.sh # Use example block line pattern
-        sed -i 's/is_slot_device=0;/is_slot_device=auto;/g' AnyKernel3/anykernel.sh # Use example is_slot_device line pattern
-
-        # Copy the built kernel Image into the AnyKernel3 directory
-        cp "${{ env.KERNEL_SOURCE_DIR }}/out/arch/arm64/boot/Image" AnyKernel3/
-
-        # Optional: Copy DTB/DTBO if needed (adjust paths/names)
-        # cp "${{ env.KERNEL_SOURCE_DIR }}/out/arch/arm64/boot/dts/vendor/qcom/lahaina-*.dtb" AnyKernel3/dtb || echo "No DTB files found or needed."
-        # cp "${{ env.KERNEL_SOURCE_DIR }}/out/arch/arm64/boot/dtbo.img" AnyKernel3/ || echo "No dtbo.img found or needed."
-
-        # Clean up unnecessary files from AnyKernel3 before zipping (optional)
-        rm -rf AnyKernel3/.git* AnyKernel3/README.md AnyKernel3/.github
-
-        # Create the zip file (from within the AnyKernel3 directory for correct structure)
-        cd AnyKernel3
-        zip -r9 "../AK3-PixelOS-lunaa-KSU-Next-${{ env.KSUVER }}-${{ env.BUILD_TIME }}.zip" * -x README.md .git* placeholder .github*
-        cd .. # Go back to KERNEL_WORKSPACE
-        echo "AnyKernel3 zip created."
-      shell: bash
-
-    - name: Upload Kernel Image Artifact
+        sed -i 's!BLOCK=/dev/block/platform/omap/omap_hsmmc.0/by-name/boot;!BLOCK=auto;!g' AnyKernel3/anykernel.sh
+        sed -i 's/IS_SLOT_DEVICE=0;/IS_SLOT_DEVICE=auto;/g' AnyKernel3/anykernel.sh
+        cp android-kernel/out/arch/arm64/boot/Image AnyKernel3/
+        rm -rf AnyKernel3/.git* AnyKernel3/README.md
+    - name: Upload image of lunaa
       if: env.CHECK_IMAGE == 'true'
       uses: actions/upload-artifact@v4
       with:
-        name: Image-lunaa-KSU-${{ env.KSUVER }}-${{ env.BUILD_TIME }}
-        path: ${{ env.KERNEL_WORKSPACE }}/${{ env.KERNEL_SOURCE_DIR }}/out/arch/arm64/boot/Image
-        if-no-files-found: error # Fail the workflow if Image is missing
+        name: Image-lunaa-${{ env.KSUVER }}
+        path: kernel_workspace/android-kernel/out/arch/arm64/boot/Image
 
-    - name: Upload AnyKernel3 Zip Artifact
+    - name: Upload AnyKernel3 of lunaa
       if: env.CHECK_IMAGE == 'true'
       uses: actions/upload-artifact@v4
       with:
         name: AK3-PixelOS-lunaa-KSU-Next-${{ env.KSUVER }}-${{ env.BUILD_TIME }}
-        # Path to the generated zip file in the KERNEL_WORKSPACE directory
-        path: ${{ env.KERNEL_WORKSPACE }}/AK3-PixelOS-lunaa-KSU-Next-${{ env.KSUVER }}-${{ env.BUILD_TIME }}.zip
-        if-no-files-found: error # Fail the workflow if zip is missing
+        path: kernel_workspace/AnyKernel3/*
