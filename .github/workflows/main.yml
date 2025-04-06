@@ -52,7 +52,7 @@ jobs:
       run: |
         set -euxo pipefail
         # Clone AnyKernel3 (only once)
-        git clone --depth=1 https://github.com/TheWildJames/AnyKernel3.git -b non-gki AnyKernel3
+        git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git -b master AnyKernel3
         # Clone SUSFS patches
         git clone --depth=1 https://gitlab.com/simonpunk/susfs4ksu.git -b kernel-5.4 susfs4ksu
         # Clone other kernel patches
