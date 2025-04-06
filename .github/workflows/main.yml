@@ -238,6 +238,7 @@ jobs:
         sed -i 's/IS_SLOT_DEVICE=0;/IS_SLOT_DEVICE=auto;/g' AnyKernel3/anykernel.sh
         cp android-kernel/out/arch/arm64/boot/Image AnyKernel3/
         rm -rf AnyKernel3/.git* AnyKernel3/README.md
+  
     - name: Upload image of lunaa
       if: env.CHECK_IMAGE == 'true'
       uses: actions/upload-artifact@v4
