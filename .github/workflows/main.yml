@@ -73,7 +73,23 @@ jobs:
       run: |
         set -euxo pipefail
         # Run KernelSU setup script
-        curl -LSs "https://raw.githubusercontent.com/backslashxx/KernelSU/magic/kernel/setup.sh" | bash -s magic
+        curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -s next-susfs-dev
+        # Initialize submodules added by the script
+        git submodule update --init --recursive
+        # Set KSU Version based on commit count
+        cd KernelSU-Next/kernel
+        KSU_COMMITS=$(git rev-list --count HEAD)
+        # Ensure KSU_COMMITS is a number, default to 0 if not
+        if ! [[ "$KSU_COMMITS" =~ ^[0-9]+$ ]]; then
+            echo "Warning: Failed to get commit count for KernelSU-Next. Defaulting KSU_VERSION."
+            KSU_COMMITS=0 # Or some default value
+        fi
+        KSU_VERSION=$(expr $KSU_COMMITS + 10200)
+        echo "Calculated KSU_VERSION: $KSU_VERSION"
+        echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
+        # Update KSU version in its Makefile
+        #sed -i "s/^\(CONFIG_KSU_VERSION[[:space:]]*=[[:space:]]*\"\).*\(\".*\)$/\1${KSU_VERSION}\2/" ../core/config.c || echo "Warning: Could not set KSU_VERSION in config.c"
+        sed -i "s/DKSU_VERSION=11998/DKSU_VERSION=${KSU_VERSION}/" Makefile || echo "Warning: Could not set DKSU_VERSION in Makefile"
       shell: bash
 
     - name: Setup SUSFS Patches
@@ -84,13 +100,13 @@ jobs:
         SUSFS_PATCH_DIR="../susfs4ksu/kernel_patches"
         OTHER_PATCH_DIR="../kernel_patches"
         PATCHES_DIR="${GITHUB_WORKSPACE}/patches"
-        KSU_DIR="KernelSU"
+        KSU_NEXT_DIR="KernelSU-Next"
     
         # Check if patch directories exist
         if [ ! -d "$SUSFS_PATCH_DIR" ]; then echo "Error: SUSFS patch directory not found at $SUSFS_PATCH_DIR"; exit 1; fi
         if [ ! -d "$OTHER_PATCH_DIR" ]; then echo "Error: Other patch directory not found at $OTHER_PATCH_DIR"; exit 1; fi
         if [ ! -d "$PATCHES_DIR" ]; then echo "Error: Patches directory not found at $PATCHES_DIR"; exit 1; fi
-        if [ ! -d "$KSU_DIR" ]; then echo "Error: KernelSU directory not found at $KSU_DIR"; exit 1; fi
+        if [ ! -d "$KSU_NEXT_DIR" ]; then echo "Error: KernelSU-Next directory not found at $KSU_NEXT_DIR"; exit 1; fi
     
         # Create target directories if they don't exist
         mkdir -p ./fs ./include/linux
@@ -180,7 +196,6 @@ jobs:
         export KBUILD_BUILD_HOST="github.com"
         export LLVM=1
         export LLVM_IAS=1
-
         # Define Make parameters
         MAKE_PARAMS=(
             O=out
@@ -189,19 +204,15 @@ jobs:
             CC=clang
             LD=ld.lld
         )
-
         # Define Defconfigs (relative to source root)
         # These will be merged into out/.config
         DEFCONFIGS="vendor/lahaina-qgki_defconfig vendor/oplus_yupik_QGKI.config"
-
         # Generate .config file
         echo "Generating .config using '${DEFCONFIGS}'..."
         make "${MAKE_PARAMS[@]}" ${DEFCONFIGS}
-
         # Start Compilation
         echo "Starting kernel build..."
         make -j$(nproc --all) "${MAKE_PARAMS[@]}"
-
         # Check if Image exists after build
         if [ ! -f "out/arch/arm64/boot/Image" ]; then
             echo "Error: Kernel Image (out/arch/arm64/boot/Image) not found after build!"
