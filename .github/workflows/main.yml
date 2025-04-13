@@ -74,22 +74,6 @@ jobs:
         set -euxo pipefail
         # Run KernelSU setup script
         curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s main
-        # Initialize submodules added by the script
-        git submodule update --init --recursive
-        # Set KSU Version based on commit count
-        cd KernelSU/kernel
-        KSU_COMMITS=$(git rev-list --count HEAD)
-        # Ensure KSU_COMMITS is a number, default to 0 if not
-        if ! [[ "$KSU_COMMITS" =~ ^[0-9]+$ ]]; then
-            echo "Warning: Failed to get commit count for KernelSU. Defaulting KSU_VERSION."
-            KSU_COMMITS=0 # Or some default value
-        fi
-        KSU_VERSION=$(expr $KSU_COMMITS + 10200)
-        echo "Calculated KSU_VERSION: $KSU_VERSION"
-        echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
-        # Update KSU version in its Makefile
-        #sed -i "s/^\(CONFIG_KSU_VERSION[[:space:]]*=[[:space:]]*\"\).*\(\".*\)$/\1${KSU_VERSION}\2/" ../core/config.c || echo "Warning: Could not set KSU_VERSION in config.c"
-        sed -i "s/DKSU_VERSION=11998/DKSU_VERSION=${KSU_VERSION}/" Makefile || echo "Warning: Could not set DKSU_VERSION in Makefile"
       shell: bash
 
     - name: Setup SUSFS Patches
@@ -106,7 +90,7 @@ jobs:
         if [ ! -d "$SUSFS_PATCH_DIR" ]; then echo "Error: SUSFS patch directory not found at $SUSFS_PATCH_DIR"; exit 1; fi
         if [ ! -d "$OTHER_PATCH_DIR" ]; then echo "Error: Other patch directory not found at $OTHER_PATCH_DIR"; exit 1; fi
         if [ ! -d "$PATCHES_DIR" ]; then echo "Error: Patches directory not found at $PATCHES_DIR"; exit 1; fi
-        if [ ! -d "$KSU_NEXT_DIR" ]; then echo "Error: KernelSU-Next directory not found at $KSU_NEXT_DIR"; exit 1; fi
+        if [ ! -d "$KSU_DIR" ]; then echo "Error: KernelSU directory not found at $KSU_DIR"; exit 1; fi
     
         # Create target directories if they don't exist
         mkdir -p ./fs ./include/linux
