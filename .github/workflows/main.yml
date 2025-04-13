@@ -73,15 +73,15 @@ jobs:
       run: |
         set -euxo pipefail
         # Run KernelSU setup script
-        curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -s next-susfs-dev
+        curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s main
         # Initialize submodules added by the script
         git submodule update --init --recursive
         # Set KSU Version based on commit count
-        cd KernelSU-Next/kernel
+        cd KernelSU/kernel
         KSU_COMMITS=$(git rev-list --count HEAD)
         # Ensure KSU_COMMITS is a number, default to 0 if not
         if ! [[ "$KSU_COMMITS" =~ ^[0-9]+$ ]]; then
-            echo "Warning: Failed to get commit count for KernelSU-Next. Defaulting KSU_VERSION."
+            echo "Warning: Failed to get commit count for KernelSU. Defaulting KSU_VERSION."
             KSU_COMMITS=0 # Or some default value
         fi
         KSU_VERSION=$(expr $KSU_COMMITS + 10200)
