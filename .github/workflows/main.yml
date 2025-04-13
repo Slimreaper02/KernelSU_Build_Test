@@ -100,7 +100,7 @@ jobs:
         SUSFS_PATCH_DIR="../susfs4ksu/kernel_patches"
         OTHER_PATCH_DIR="../kernel_patches"
         PATCHES_DIR="${GITHUB_WORKSPACE}/patches"
-        KSU_NEXT_DIR="KernelSU-Next"
+        KSU_DIR="KernelSU"
     
         # Check if patch directories exist
         if [ ! -d "$SUSFS_PATCH_DIR" ]; then echo "Error: SUSFS patch directory not found at $SUSFS_PATCH_DIR"; exit 1; fi
