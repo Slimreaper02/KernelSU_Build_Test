@@ -74,8 +74,6 @@ jobs:
         set -euxo pipefail
         # Run KernelSU setup script
         curl -LSs "https://raw.githubusercontent.com/backslashxx/KernelSU/magic/kernel/setup.sh" | bash -s magic
-        KSU_VERSION_1=$(cd KernelSU && expr $(/usr/bin/git rev-list --count HEAD) + 10174)
-        echo "KSUVER_1=$KSU_VERSION_1" >> $GITHUB_ENV
       shell: bash
 
     - name: Setup SUSFS Patches
