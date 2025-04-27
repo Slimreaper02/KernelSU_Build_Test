@@ -168,7 +168,7 @@ jobs:
         echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y" >> $DEFCONFIG_TARGET
         echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y" >> $DEFCONFIG_TARGET
         echo "CONFIG_KSU_SUSFS_SUS_SU=n" >> $DEFCONFIG_TARGET # Make sure this is intended
-        echo "CONFIG_KSU_WITH_KPROBES=n" >> $DEFCONFIG_TARGET # Make sure this is intended
+        echo "CONFIG_KSU_MANUAL_HOOK=n" >> $DEFCONFIG_TARGET # Make sure this is intended
         # Add other required configs
         echo "CONFIG_COMPAT=y" >> $DEFCONFIG_TARGET
         echo "CONFIG_TMPFS_XATTR=y" >> $DEFCONFIG_TARGET
