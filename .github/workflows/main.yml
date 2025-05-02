@@ -73,15 +73,15 @@ jobs:
       run: |
         set -euxo pipefail
         # Run KernelSU setup script
-        curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s susfs-v1.5.5
+        curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -s next-susfs-dev
         # Initialize submodules added by the script
         git submodule update --init --recursive
         # Set KSU Version based on commit count
-        cd KernelSU/kernel
+        cd KernelSU-Next/kernel
         KSU_COMMITS=$(git rev-list --count HEAD)
         # Ensure KSU_COMMITS is a number, default to 0 if not
         if ! [[ "$KSU_COMMITS" =~ ^[0-9]+$ ]]; then
-            echo "Warning: Failed to get commit count for KernelSU. Defaulting KSU_VERSION."
+            echo "Warning: Failed to get commit count for KernelSU-Next. Defaulting KSU_VERSION."
             KSU_COMMITS=0 # Or some default value
         fi
         KSU_VERSION=$(expr $KSU_COMMITS + 10200)
@@ -100,13 +100,13 @@ jobs:
         SUSFS_PATCH_DIR="../susfs4ksu/kernel_patches"
         OTHER_PATCH_DIR="../kernel_patches"
         PATCHES_DIR="${GITHUB_WORKSPACE}/patches"
-        KSU_DIR="KernelSU"
+        KSU_NEXT_DIR="KernelSU-Next"
     
         # Check if patch directories exist
         if [ ! -d "$SUSFS_PATCH_DIR" ]; then echo "Error: SUSFS patch directory not found at $SUSFS_PATCH_DIR"; exit 1; fi
         if [ ! -d "$OTHER_PATCH_DIR" ]; then echo "Error: Other patch directory not found at $OTHER_PATCH_DIR"; exit 1; fi
         if [ ! -d "$PATCHES_DIR" ]; then echo "Error: Patches directory not found at $PATCHES_DIR"; exit 1; fi
-        if [ ! -d "$KSU_DIR" ]; then echo "Error: KernelSU directory not found at $KSU_DIR"; exit 1; fi
+        if [ ! -d "$KSU_NEXT_DIR" ]; then echo "Error: KernelSU-Next directory not found at $KSU_NEXT_DIR"; exit 1; fi
     
         # Create target directories if they don't exist
         mkdir -p ./fs ./include/linux
@@ -168,7 +168,7 @@ jobs:
         echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y" >> $DEFCONFIG_TARGET
         echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y" >> $DEFCONFIG_TARGET
         echo "CONFIG_KSU_SUSFS_SUS_SU=n" >> $DEFCONFIG_TARGET # Make sure this is intended
-        echo "CONFIG_KSU_MANUAL_HOOK=n" >> $DEFCONFIG_TARGET # Make sure this is intended
+        echo "CONFIG_KSU_WITH_KPROBES=n" >> $DEFCONFIG_TARGET # Make sure this is intended
         # Add other required configs
         echo "CONFIG_COMPAT=y" >> $DEFCONFIG_TARGET
         echo "CONFIG_TMPFS_XATTR=y" >> $DEFCONFIG_TARGET
@@ -245,5 +245,5 @@ jobs:
       if: env.CHECK_IMAGE == 'true'
       uses: actions/upload-artifact@v4
       with:
-        name: AK3-PixelOS-lunaa-RKSU-${{ env.KSUVER }}-${{ env.BUILD_TIME }}
+        name: AK3-PixelOS-lunaa-KSU-Next-${{ env.KSUVER }}-${{ env.BUILD_TIME }}
         path: kernel_workspace/AnyKernel3/*
