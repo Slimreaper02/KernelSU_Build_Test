@@ -61,7 +61,7 @@ jobs:
       working-directory: ${{ env.KERNEL_WORKSPACE }}
       run: |
         set -euxo pipefail
-        git clone --recursive --depth=1 https://github.com/Slimreaper02/kernel_oneplus_sm8350 -b fifteen ${{ env.KERNEL_SOURCE_DIR }}
+        git clone --recursive --depth=1 https://github.com/pjgowtham/android_kernel_oneplus_sm8350 -b lineage-22.2 ${{ env.KERNEL_SOURCE_DIR }}
         cd ${{ env.KERNEL_SOURCE_DIR }}
         # Remove "-dirty" suffix from local version
         sed -i 's/ -dirty//g' scripts/setlocalversion     
