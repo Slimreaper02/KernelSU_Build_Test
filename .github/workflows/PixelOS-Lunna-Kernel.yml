@@ -36,16 +36,17 @@ jobs:
     - name: Download kernel source
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
-        git clone --recursive https://github.com/PixelOS-Devices/android_kernel_oneplus_sm8350 -b sixteen-qpr1 android-kernel --depth=1
+        git clone --recursive https://github.com/Slimreaper02/android_kernel_oneplus_sm8350 -b sixteen-qpr1 android-kernel --depth=1
+        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel/scripts
+        sed -i 's/ -dirty//g' setlocalversion
 
     - name: Setup backslashxx KernelSU
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-          curl -LSs https://raw.githubusercontent.com/backslashxx/KernelSU/master/kernel/setup.sh | bash -s master
-          echo "CONFIG_KSU_TAMPER_SYSCALL_TABLE=y" >> arch/arm64/configs/vendor/lahaina-qgki_defconfig
-          XXKSUVER=$(grep -oP 'KSU_VERSION\s*=\s*\K\d+' KernelSU/kernel/Makefile | tail -n1)
-          echo "XXKSUVER=$XXKSUVER" >> $GITHUB_ENV
-
+        curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
+        KSU_VERSION=$(cd KernelSU && expr $(/usr/bin/git rev-list --count HEAD) + 10200)
+        echo "KSUVER=KSU_$KSU_VERSION" >> $GITHUB_ENV
+    
     - name: Build kernel for lunaa
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
